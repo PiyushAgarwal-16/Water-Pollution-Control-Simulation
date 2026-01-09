@@ -561,16 +561,14 @@ export default class MainScene extends Phaser.Scene {
         const info = this.add.text(0, -20,
             `Pollution Output: ${pollutionLevel}\n` +
             `Rate: ${(factory.pollutionRate * 100).toFixed(1)}%/sec\n\n` +
-            `This factory releases industrial waste\n` +
-            `that flows downstream, contaminating\n` +
-            `rivers and ponds. Reduce output to\n` +
-            `protect aquatic life.`,
+            `This factory releases industrial waste that flows downstream, contaminating rivers and ponds. Reduce output to protect aquatic life.`,
             {
                 fontFamily: 'Inter, Arial, sans-serif',
                 fontSize: '13px',
                 fill: '#e0e0e0',
                 align: 'center',
-                lineSpacing: 4
+                lineSpacing: 4,
+                wordWrap: { width: 350, useAdvancedWrap: true }
             }
         ).setOrigin(0.5, 0);
 
@@ -656,13 +654,13 @@ export default class MainScene extends Phaser.Scene {
 
         let explanation = '';
         if (pollution > 30) {
-            explanation = 'High pollution is poisoning fish and\ndegrading the ecosystem. Place filters\nor reduce factory output to save wildlife.';
+            explanation = 'High pollution is poisoning fish and degrading the ecosystem. Place filters or reduce factory output to save wildlife.';
         } else if (pollution > 10) {
-            explanation = 'Moderate pollution is building up.\nFish are showing signs of stress.\nAct now to prevent long-term damage.';
+            explanation = 'Moderate pollution is building up. Fish are showing signs of stress. Act now to prevent long-term damage.';
         } else if (longTermPollution > 20) {
-            explanation = 'Water appears clean now, but\nresidual pollutants remain in sediment.\nContinued care is needed for recovery.';
+            explanation = 'Water appears clean now, but residual pollutants remain in sediment. Continued care is needed for recovery.';
         } else {
-            explanation = 'Water quality is good! Fish are\nthriving. Keep pollution low to\nmaintain a healthy ecosystem.';
+            explanation = 'Water quality is good! Fish are thriving. Keep pollution low to maintain a healthy ecosystem.';
         }
 
         const info = this.add.text(0, -30,
@@ -676,7 +674,8 @@ export default class MainScene extends Phaser.Scene {
                 fontSize: '13px',
                 fill: '#e0e0e0',
                 align: 'center',
-                lineSpacing: 4
+                lineSpacing: 4,
+                wordWrap: { width: 370, useAdvancedWrap: true }
             }
         ).setOrigin(0.5, 0);
 
