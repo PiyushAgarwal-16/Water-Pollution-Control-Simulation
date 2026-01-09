@@ -2,19 +2,26 @@ import Phaser from 'phaser';
 import GridSystem from '../systems/GridSystem';
 import PollutionSystem from '../systems/PollutionSystem';
 import Factory from '../objects/Factory';
+import Filter from '../objects/Filter';
 
 import Fish from '../objects/Fish';
 
 export default class MainScene extends Phaser.Scene {
+    constructor() {
+        super('MainScene');
+        this.currentTool = 'none'; // 'none', 'filter'
+    }
     // ... existing imports ...
 
     preload() {
         this.load.image('world-map', '/assets/world-map.png');
         this.load.image('factory', '/assets/factory.png');
+        this.load.image('filter', '/assets/filter.png');
     }
 
     create() {
         // Generate a clean 16x16 fish texture programmatically
+        // This ensures the fish has a transparent background and perfect sizing
         const fishGraphics = this.make.graphics({ x: 0, y: 0, add: false });
         fishGraphics.fillStyle(0xff8800, 1); // Orange
         fishGraphics.fillCircle(8, 8, 6); // Body
@@ -73,12 +80,7 @@ export default class MainScene extends Phaser.Scene {
         this.cameras.main.centerOn(map.width / 2, map.height / 2);
         this.cameras.main.setZoom(1);
 
-        this.add.text(16, 16, 'Water Pollution Simulation\nPollution spreads from factories...', {
-            fontSize: '18px',
-            padding: { x: 10, y: 5 },
-            backgroundColor: '#000000',
-            fill: '#ffffff'
-        }).setScrollFactor(0).setDepth(100);
+
 
         this.cursors = this.input.keyboard.createCursorKeys();
 
@@ -96,6 +98,17 @@ export default class MainScene extends Phaser.Scene {
             factory.setVisible(false); // Hidden, as they are already on the map
             this.add.existing(factory);
         });
+
+        // UI Toolbar
+        this.createToolbar();
+
+        // Input Handling for Placement
+        this.input.on('pointerdown', (pointer) => {
+            if (this.currentTool === 'filter') {
+                const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+                this.placeFilter(worldPoint.x, worldPoint.y);
+            }
+        });
     }
 
     update(time, delta) {
@@ -109,9 +122,9 @@ export default class MainScene extends Phaser.Scene {
         // Update Simulation
         this.pollutionSystem.update();
 
-        // Update Factories
+        // Update Factories & Filters
         this.children.list.forEach(child => {
-            if (child.update && child instanceof Factory) child.update();
+            if (child.update && (child instanceof Factory || child instanceof Filter)) child.update();
         });
 
         // Update Fish
@@ -119,6 +132,9 @@ export default class MainScene extends Phaser.Scene {
 
         // Draw Pollution
         this.drawPollution();
+
+        // Update HUD
+        if (this.hudText) this.updateHUD(time);
     }
 
     drawPollution() {
@@ -161,6 +177,80 @@ export default class MainScene extends Phaser.Scene {
                 const fish = new Fish(this, x, y, bounds, this.pollutionSystem);
                 this.fishGroup.push(fish);
             }
+        }
+    }
+
+    createToolbar() {
+        // Simple UI container
+        const toolbar = this.add.container(16, 60);
+        toolbar.setScrollFactor(0).setDepth(100);
+
+        // Filter Button (Background)
+        const bg = this.add.rectangle(0, 0, 140, 40, 0x444444)
+            .setOrigin(0, 0)
+            .setInteractive({ useHandCursor: true });
+
+        // Filter Text
+        const text = this.add.text(10, 10, 'Place Filter', { fontSize: '16px', fill: '#ffffff' });
+
+        toolbar.add([bg, text]);
+
+        // Interaction
+        bg.on('pointerdown', () => {
+            this.currentTool = this.currentTool === 'filter' ? 'none' : 'filter';
+            // Update Visual State
+            if (this.currentTool === 'filter') {
+                bg.setFillStyle(0x00aa00); // Green when active
+                text.setText('Click to Place');
+            } else {
+                bg.setFillStyle(0x444444); // Gray when inactive
+                text.setText('Place Filter');
+            }
+        });
+
+        this.createHUD();
+    }
+
+    createHUD() {
+        const hudBg = this.add.rectangle(16, 16, 200, 40, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(100);
+        this.hudText = this.add.text(26, 26, 'Loading stats...', {
+            fontSize: '14px',
+            fill: '#ffffff'
+        }).setScrollFactor(0).setDepth(101);
+    }
+
+    updateHUD(time) {
+        const stats = this.pollutionSystem.getStatistics();
+        const liveFish = this.fishGroup.filter(f => !f.isDead).length;
+        const totalFish = this.fishGroup.length;
+
+        this.hudText.setText(
+            `Pollution: ${stats.avgPollution.toFixed(1)}%\n` +
+            `Fish: ${liveFish}/${totalFish}`
+        );
+
+        // Game Over / Win check
+        if (liveFish === 0) {
+            this.hudText.setColor('#ff0000');
+            this.hudText.setText('GAME OVER: All fish died!');
+        } else if (stats.avgPollution < 2 && time > 5000) { // Require < 2% pollution and some time passed
+            this.hudText.setColor('#00ff00');
+            this.hudText.setText(`VICTORY! Water Clean\nPollution: ${stats.avgPollution.toFixed(1)}%`);
+        } else {
+            this.hudText.setColor('#ffffff');
+        }
+    }
+
+    placeFilter(x, y) {
+        // Check grid if water
+        const gx = Math.floor(x / this.gridSystem.gridSize);
+        const gy = Math.floor(y / this.gridSystem.gridSize);
+
+        if (this.gridSystem.isWater(gx, gy)) {
+            const filter = new Filter(this, x, y, this.pollutionSystem);
+            this.add.existing(filter);
+        } else {
+            console.log("Can only place filters on water!");
         }
     }
 }

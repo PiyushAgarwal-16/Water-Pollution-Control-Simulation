@@ -7,7 +7,7 @@ export default class Fish extends Phaser.GameObjects.Sprite {
 
         this.health = 100;
         this.isDead = false;
-        this.speed = 0.5;
+        this.speed = 0.1;
         this.moveTarget = null;
 
         this.setOrigin(0.5, 0.5);
@@ -35,9 +35,9 @@ export default class Fish extends Phaser.GameObjects.Sprite {
         // Simple wiggle tween
         this.scene.tweens.add({
             targets: this,
-            scaleX: 0.6, // Slight squish
-            scaleY: 0.8,
-            duration: 200,
+            scaleX: 0.99,
+            scaleY: 1.01,
+            duration: 1800, // Very slow and calm
             yoyo: true,
             repeat: -1
         });
@@ -56,21 +56,24 @@ export default class Fish extends Phaser.GameObjects.Sprite {
             // Take damage based on pollution
             this.health -= cell.pollution * 0.1;
 
-            // Visual feedback: Tint red/green/sickly
+            // Slow down
+            this.speed = Math.max(0.1, 0.5 * (this.health / 100));
+        } else {
+            // Recover slightly if clean water (optional)
+            this.speed = 0.05;
+        }
+
+        // Apply Tint based on Health always to prevent flashing
+        if (this.health < 100) {
             const tint = Phaser.Display.Color.Interpolate.ColorWithColor(
-                new Phaser.Display.Color(255, 255, 255),
-                new Phaser.Display.Color(50, 200, 50),
+                new Phaser.Display.Color(255, 255, 255), // White/Normal
+                new Phaser.Display.Color(50, 200, 50),   // Sickly Green
                 100,
                 this.health
             );
             this.setTint(Phaser.Display.Color.GetColor(tint.r, tint.g, tint.b));
-
-            // Slow down
-            this.speed = Math.max(0.1, 0.5 * (this.health / 100));
         } else {
-            // Recover slightly if clean water (optional) or just clear tint
             this.clearTint();
-            this.speed = 0.5;
         }
 
         if (this.health <= 0) {

@@ -63,4 +63,33 @@ export default class PollutionSystem {
             if (cell.pollution > 1) cell.pollution = 1; // Cap at 100%
         }
     }
+
+    removePollution(gridX, gridY, amount) {
+        const cell = this.gridSystem.getCell(gridX, gridY);
+        if (cell) {
+            cell.pollution -= amount;
+            if (cell.pollution < 0) cell.pollution = 0; // Cap at 0%
+        }
+    }
+
+    getStatistics() {
+        let totalWater = 0;
+        let totalPollution = 0;
+
+        for (let y = 0; y < this.gridSystem.height; y++) {
+            for (let x = 0; x < this.gridSystem.width; x++) {
+                const cell = this.gridSystem.grid[y][x];
+                if (cell && cell.isWater) {
+                    totalWater++;
+                    totalPollution += cell.pollution;
+                }
+            }
+        }
+
+        const avgPollution = totalWater > 0 ? (totalPollution / totalWater) * 100 : 0;
+        return {
+            totalWater,
+            avgPollution
+        };
+    }
 }

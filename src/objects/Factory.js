@@ -3,7 +3,8 @@ export default class Factory extends Phaser.GameObjects.Sprite {
         super(scene, x, y, 'factory'); // We'll need a factory texture or use a placeholder
         this.scene = scene;
         this.pollutionSystem = pollutionSystem;
-        this.pollutionRate = 0.05;
+        this.pollutionRate = 0.02; // Reduced slightly to balance with cleanup
+
 
         this.scene.add.existing(this);
         this.setOrigin(0.5, 1); // Anchor at bottom for placement
