@@ -3,10 +3,10 @@ import GridSystem from '../systems/GridSystem';
 import PollutionSystem from '../systems/PollutionSystem';
 import Factory from '../objects/Factory';
 
+import Fish from '../objects/Fish';
+
 export default class MainScene extends Phaser.Scene {
-    constructor() {
-        super('MainScene');
-    }
+    // ... existing imports ...
 
     preload() {
         this.load.image('world-map', '/assets/world-map.png');
@@ -14,16 +14,59 @@ export default class MainScene extends Phaser.Scene {
     }
 
     create() {
+        // Generate a clean 16x16 fish texture programmatically
+        const fishGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+        fishGraphics.fillStyle(0xff8800, 1); // Orange
+        fishGraphics.fillCircle(8, 8, 6); // Body
+        fishGraphics.fillStyle(0xffffff, 1); // White eye
+        fishGraphics.fillCircle(10, 6, 2); // Eye
+        fishGraphics.fillStyle(0xff8800, 1); // Tail
+        fishGraphics.fillTriangle(0, 8, 4, 4, 4, 12);
+
+        fishGraphics.generateTexture('fish', 16, 16);
+        fishGraphics.destroy();
+
+        // ... existing map and system setup ...
         const map = this.add.image(0, 0, 'world-map').setOrigin(0, 0);
         this.physics.world.setBounds(0, 0, map.width, map.height);
 
-        // Initialize Systems - small delay to ensure texture data is ready if needed, 
-        // but in Phaser preload handles it.
-        this.gridSystem = new GridSystem(this, 'world-map', 8); // 8px grid
+        this.gridSystem = new GridSystem(this, 'world-map', 8);
         this.pollutionSystem = new PollutionSystem(this.gridSystem);
-
         this.pollutionGraphics = this.add.graphics();
-        this.pollutionGraphics.setAlpha(0.6); // Semi-transparent for overlay
+        this.pollutionGraphics.setAlpha(0.6);
+
+        // Define Ponds (approximate rectangles based on map)
+        const ponds = [
+            { x: 550, y: 350, width: 150, height: 150 }, // Top Right Pond
+            { x: 550, y: 650, width: 120, height: 100 }  // Bottom Right Pond (approx)
+            // Note: coordinates need to match the visual map 1:1. 
+            // I'll use safer generic bounds for "Pond Areas"
+        ];
+
+        // Let's debug-draw ponds to verify location (temporary)
+        // Or better, just spawn fish in "Water" areas near specific points
+
+        this.fishGroup = [];
+
+        // Spawn Fish in Top Right Pond
+        this.spawnFishInArea(680, 200, 100, 10); // x, y, radius, count
+
+        // Spawn Fish in Bottom Right Pond
+        this.spawnFishInArea(680, 400, 80, 10);
+
+        // Use previous factory logic...
+
+        // ... factory loop
+
+
+        // Spawn Fish in Ponds
+        // Top Right Pond
+        this.spawnFishInArea(680, 200, 100, 15);
+        // Bottom Right Pond
+        this.spawnFishInArea(680, 480, 80, 10);
+        // Central Pond
+        this.spawnFishInArea(430, 680, 60, 8);
+
 
         // Cameras
         this.cameras.main.setBounds(0, 0, map.width, map.height);
@@ -71,6 +114,9 @@ export default class MainScene extends Phaser.Scene {
             if (child.update && child instanceof Factory) child.update();
         });
 
+        // Update Fish
+        this.fishGroup.forEach(fish => fish.update(time, delta));
+
         // Draw Pollution
         this.drawPollution();
     }
@@ -92,6 +138,28 @@ export default class MainScene extends Phaser.Scene {
                     this.pollutionGraphics.fillStyle(0x554400, alpha);
                     this.pollutionGraphics.fillRect(cell.worldX, cell.worldY, size, size);
                 }
+            }
+        }
+    }
+
+    spawnFishInArea(centerX, centerY, radius, count) {
+        if (!this.fishGroup) this.fishGroup = [];
+        for (let i = 0; i < count; i++) {
+            // Random point in circle
+            const angle = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * radius;
+            const x = centerX + r * Math.cos(angle);
+            const y = centerY + r * Math.sin(angle);
+
+            // Check if water
+            const gx = Math.floor(x / this.gridSystem.gridSize);
+            const gy = Math.floor(y / this.gridSystem.gridSize);
+
+            if (this.gridSystem.isWater(gx, gy)) {
+                // Create fish bounded to this area
+                const bounds = { x: centerX - radius, y: centerY - radius, width: radius * 2, height: radius * 2 };
+                const fish = new Fish(this, x, y, bounds, this.pollutionSystem);
+                this.fishGroup.push(fish);
             }
         }
     }
