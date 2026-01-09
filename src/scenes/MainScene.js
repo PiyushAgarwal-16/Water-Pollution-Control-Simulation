@@ -3,6 +3,7 @@ import GridSystem from '../systems/GridSystem';
 import PollutionSystem from '../systems/PollutionSystem';
 import Factory from '../objects/Factory';
 import Filter from '../objects/Filter';
+import Farm from '../objects/Farm';
 
 import Fish from '../objects/Fish';
 
@@ -20,6 +21,15 @@ export default class MainScene extends Phaser.Scene {
     }
 
     create() {
+        // Generate Farm Texture (Green Square)
+        const farmGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+        farmGraphics.fillStyle(0x44aa44, 1);
+        farmGraphics.fillRect(0, 0, 32, 32); // 32x32 farm
+        farmGraphics.lineStyle(2, 0x226622);
+        farmGraphics.strokeRect(0, 0, 32, 32);
+        farmGraphics.generateTexture('farm', 32, 32);
+        farmGraphics.destroy();
+
         // Generate a clean 16x16 fish texture programmatically
         // This ensures the fish has a transparent background and perfect sizing
         const fishGraphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -55,11 +65,7 @@ export default class MainScene extends Phaser.Scene {
 
         this.fishGroup = [];
 
-        // Spawn Fish in Top Right Pond
-        this.spawnFishInArea(680, 200, 100, 10); // x, y, radius, count
 
-        // Spawn Fish in Bottom Right Pond
-        this.spawnFishInArea(680, 400, 80, 10);
 
         // Use previous factory logic...
 
@@ -83,6 +89,12 @@ export default class MainScene extends Phaser.Scene {
 
 
         this.cursors = this.input.keyboard.createCursorKeys();
+        this.wasd = this.input.keyboard.addKeys({
+            up: Phaser.Input.Keyboard.KeyCodes.W,
+            down: Phaser.Input.Keyboard.KeyCodes.S,
+            left: Phaser.Input.Keyboard.KeyCodes.A,
+            right: Phaser.Input.Keyboard.KeyCodes.D
+        });
 
         // Input to place factories
         // Place invisible factories over the map's visual factories
@@ -95,15 +107,32 @@ export default class MainScene extends Phaser.Scene {
 
         factoryLocations.forEach(loc => {
             const factory = new Factory(this, loc.x, loc.y, this.pollutionSystem);
-            factory.setVisible(false); // Hidden, as they are already on the map
+            factory.setAlpha(0.01); // Almost invisible but interactable (visible=false disables input)
             this.add.existing(factory);
         });
+
+        // Place Farms (Visible)
+        // Locate them near water but on land
+        const farmLocations = [
+            { x: 180, y: 220 }, // Top Left
+            { x: 650, y: 500 }  // Bottom Right near pond
+        ];
+
+        farmLocations.forEach(loc => {
+            const farm = new Farm(this, loc.x, loc.y, this.pollutionSystem);
+            // Farms are visible "new" structures, unlike the pre-painted factories
+            this.add.existing(farm);
+        });
+
 
         // UI Toolbar
         this.createToolbar();
 
         // Input Handling for Placement
         this.input.on('pointerdown', (pointer) => {
+            // Ensure focus on click
+            window.focus();
+
             if (this.currentTool === 'filter') {
                 const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
                 this.placeFilter(worldPoint.x, worldPoint.y);
@@ -112,19 +141,23 @@ export default class MainScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        // Update Camera
-        const speed = 10;
-        if (this.cursors.left.isDown) this.cameras.main.scrollX -= speed;
-        if (this.cursors.right.isDown) this.cameras.main.scrollX += speed;
-        if (this.cursors.up.isDown) this.cameras.main.scrollY -= speed;
-        if (this.cursors.down.isDown) this.cameras.main.scrollY += speed;
+        try {
+            // Update Camera
+            const speed = 10;
+            if (this.cursors.left.isDown || this.wasd.left.isDown) this.cameras.main.scrollX -= speed;
+            if (this.cursors.right.isDown || this.wasd.right.isDown) this.cameras.main.scrollX += speed;
+            if (this.cursors.up.isDown || this.wasd.up.isDown) this.cameras.main.scrollY -= speed;
+            if (this.cursors.down.isDown || this.wasd.down.isDown) this.cameras.main.scrollY += speed;
 
-        // Update Simulation
-        this.pollutionSystem.update();
+            // Update Simulation
+            this.pollutionSystem.update();
+        } catch (e) {
+            console.error("Error in MainScene update loop:", e);
+        }
 
         // Update Factories & Filters
         this.children.list.forEach(child => {
-            if (child.update && (child instanceof Factory || child instanceof Filter)) child.update();
+            if (child.update && (child instanceof Factory || child instanceof Filter || child instanceof Farm)) child.update();
         });
 
         // Update Fish
@@ -147,35 +180,21 @@ export default class MainScene extends Phaser.Scene {
         for (let y = 0; y < this.gridSystem.height; y++) {
             for (let x = 0; x < this.gridSystem.width; x++) {
                 const cell = grid[y][x];
-                // Only draw if polluted
-                if (cell && cell.pollution > 0.05) {
-                    const alpha = Phaser.Math.Clamp(cell.pollution, 0, 0.8);
-                    // Dark Brown/Green Sludge color: 0x554400
-                    this.pollutionGraphics.fillStyle(0x554400, alpha);
+                if (!cell) continue;
+
+                // Draw Long Term Pollution (Greenish Sludge / Algae)
+                if (cell.longTermPollution > 0.01) {
+                    const alpha = Phaser.Math.Clamp(cell.longTermPollution, 0, 0.9);
+                    this.pollutionGraphics.fillStyle(0x004400, alpha); // Deep Green
                     this.pollutionGraphics.fillRect(cell.worldX, cell.worldY, size, size);
                 }
-            }
-        }
-    }
 
-    spawnFishInArea(centerX, centerY, radius, count) {
-        if (!this.fishGroup) this.fishGroup = [];
-        for (let i = 0; i < count; i++) {
-            // Random point in circle
-            const angle = Math.random() * Math.PI * 2;
-            const r = Math.sqrt(Math.random()) * radius;
-            const x = centerX + r * Math.cos(angle);
-            const y = centerY + r * Math.sin(angle);
-
-            // Check if water
-            const gx = Math.floor(x / this.gridSystem.gridSize);
-            const gy = Math.floor(y / this.gridSystem.gridSize);
-
-            if (this.gridSystem.isWater(gx, gy)) {
-                // Create fish bounded to this area
-                const bounds = { x: centerX - radius, y: centerY - radius, width: radius * 2, height: radius * 2 };
-                const fish = new Fish(this, x, y, bounds, this.pollutionSystem);
-                this.fishGroup.push(fish);
+                // Draw Active Pollution (Brownish tint) on top
+                if (cell.pollution > 0.05) {
+                    const alpha = Phaser.Math.Clamp(cell.pollution, 0, 0.8);
+                    this.pollutionGraphics.fillStyle(0x654321, alpha); // Brown
+                    this.pollutionGraphics.fillRect(cell.worldX, cell.worldY, size, size);
+                }
             }
         }
     }
@@ -212,33 +231,192 @@ export default class MainScene extends Phaser.Scene {
     }
 
     createHUD() {
-        const hudBg = this.add.rectangle(16, 16, 200, 40, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(100);
+        const hudBg = this.add.rectangle(16, 16, 220, 55, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(100);
         this.hudText = this.add.text(26, 26, 'Loading stats...', {
             fontSize: '14px',
             fill: '#ffffff'
         }).setScrollFactor(0).setDepth(101);
+
+        // Force initial update
+        this.updateHUD(0);
     }
 
     updateHUD(time) {
-        const stats = this.pollutionSystem.getStatistics();
-        const liveFish = this.fishGroup.filter(f => !f.isDead).length;
-        const totalFish = this.fishGroup.length;
+        if (this.hudText) {
+            const stats = this.pollutionSystem.getStatistics();
+            const liveFish = this.fishGroup.filter(f => !f.isDead).length;
+            const totalFish = this.fishGroup.length;
 
-        this.hudText.setText(
-            `Pollution: ${stats.avgPollution.toFixed(1)}%\n` +
-            `Fish: ${liveFish}/${totalFish}`
-        );
+            // Calculate "River Health" as inverse of long-term pollution
+            const health = Math.max(0, 100 - stats.avgLongTerm).toFixed(1);
 
-        // Game Over / Win check
-        if (liveFish === 0) {
-            this.hudText.setColor('#ff0000');
-            this.hudText.setText('GAME OVER: All fish died!');
-        } else if (stats.avgPollution < 2 && time > 5000) { // Require < 2% pollution and some time passed
-            this.hudText.setColor('#00ff00');
-            this.hudText.setText(`VICTORY! Water Clean\nPollution: ${stats.avgPollution.toFixed(1)}%`);
-        } else {
-            this.hudText.setColor('#ffffff');
+            this.hudText.setText(
+                `Pollution (Active): ${stats.avgPollution.toFixed(1)}%\n` +
+                `River Health: ${health}%\n` +
+                `Fish: ${liveFish}/${totalFish}`
+            );
         }
+    }
+
+    selectObject(object) {
+        // Deselect previous
+        if (this.selectedObject) {
+            this.selectedObject.clearTint();
+        }
+
+        this.selectedObject = object;
+        this.selectedObject.setTint(0xffff00); // Highlight Yellow
+
+        this.updateInspectorUI();
+    }
+
+    updateInspectorUI() {
+        if (!this.inspectorContainer) {
+            this.createInspectorUI();
+        }
+
+        this.inspectorContainer.setVisible(true);
+        this.inspectorTitle.setText(this.selectedObject instanceof Factory ? 'Factory Control' : 'Filter Control');
+
+        // Clear previous controls
+        this.inspectorControls.removeAll(true);
+
+        if (this.selectedObject instanceof Factory) {
+            const rate = this.selectedObject.pollutionRate;
+
+            // Factory UI - "Discharge Policy"
+            const title = this.add.text(0, -15, 'Industrial Policy:', { fontSize: '10px', fill: '#aaaaaa' });
+
+            const isApprox = (val) => Math.abs(rate - val) < 0.005;
+
+            // Strict (Low - 0.01)
+            const strictBtn = this.createButton(0, 10, 'Strict', 0x00aa00, () => {
+                this.selectedObject.setPollutionLevel(20); // 0.01
+                this.updateInspectorUI();
+            }, isApprox(0.01));
+
+            // Standard (Med - 0.025)
+            const stdBtn = this.createButton(50, 10, 'Std', 0xaaaa00, () => {
+                this.selectedObject.setPollutionLevel(50); // 0.025
+                this.updateInspectorUI();
+            }, isApprox(0.025));
+
+            // Lax (High - 0.05)
+            const laxBtn = this.createButton(100, 10, 'Lax', 0xaa0000, () => {
+                this.selectedObject.setPollutionLevel(100); // 0.05
+                this.updateInspectorUI();
+            }, isApprox(0.05));
+
+            const valText = this.add.text(0, 40, `Discharge: ${(rate * 2000).toFixed(0)}%`, { fontSize: '10px' });
+
+            this.inspectorControls.add([title, strictBtn, stdBtn, laxBtn, valText]);
+
+        } else if (this.selectedObject instanceof Farm) {
+            const rate = this.selectedObject.pollutionRate;
+
+            // Farm UI - "Farming Practice"
+            const title = this.add.text(0, -15, 'Farming Practice:', { fontSize: '10px', fill: '#aaaaaa' });
+
+            const isApprox = (val) => Math.abs(rate - val) < 0.005;
+
+            // Sustainable (Low - 0.01)
+            const sustBtn = this.createButton(0, 10, 'Org', 0x00aa00, () => {
+                this.selectedObject.setPollutionLevel(0); // Sustainable
+                this.updateInspectorUI();
+            }, isApprox(0.01));
+
+            // Standard (Med - 0.03)
+            const stdBtn = this.createButton(50, 10, 'Std', 0xaaaa00, () => {
+                this.selectedObject.setPollutionLevel(50); // Standard
+                this.updateInspectorUI();
+            }, isApprox(0.03));
+
+            // Intensive (High - 0.05)
+            const intBtn = this.createButton(100, 10, 'Int', 0xaa0000, () => {
+                this.selectedObject.setPollutionLevel(100); // Intensive
+                this.updateInspectorUI();
+            }, isApprox(0.05));
+
+            const valText = this.add.text(0, 40, `Runoff Index: ${(rate * 2000).toFixed(0)}`, { fontSize: '10px' });
+
+            this.inspectorControls.add([title, sustBtn, stdBtn, intBtn, valText]);
+
+        } else if (this.selectedObject instanceof Filter) {
+            const label = this.add.text(0, 0, 'Status:', { fontSize: '12px', fill: '#ffffff' });
+
+            const color = this.selectedObject.isActive ? 0x00aa00 : 0xaa0000;
+            const text = this.selectedObject.isActive ? 'Active' : 'Inactive';
+
+            const toggleBtn = this.createButton(0, 25, text, color, () => {
+                this.selectedObject.toggle(!this.selectedObject.isActive);
+                this.updateInspectorUI();
+            }, true);
+
+            this.inspectorControls.add([label, toggleBtn]);
+        }
+    }
+
+    createInspectorUI() {
+        // Place inspector on the right side
+        const x = this.cameras.main.width ? this.cameras.main.width - 170 : 630;
+        this.inspectorContainer = this.add.container(x, 60).setScrollFactor(0).setDepth(100);
+
+        // Make background interactive to block clicks
+        const bg = this.add.rectangle(0, 0, 160, 100, 0x222222, 0.9)
+            .setOrigin(0, 0)
+            .setInteractive();
+
+        this.inspectorTitle = this.add.text(10, 10, 'Inspector', { fontSize: '14px', fill: '#ffcc00' });
+        this.inspectorControls = this.add.container(10, 40);
+
+        this.inspectorContainer.add([bg, this.inspectorTitle, this.inspectorControls]);
+        this.inspectorContainer.setVisible(false);
+    }
+
+    createButton(x, y, text, color, callback, isActive = false) {
+        const container = this.add.container(x, y);
+
+        // Bigger button
+        const width = 45;
+        const height = 25;
+
+        const baseColor = isActive ? color : 0x555555;
+        const hoverColor = 0x777777;
+
+        const bg = this.add.rectangle(0, 0, width, height, baseColor)
+            .setOrigin(0, 0)
+            .setStrokeStyle(isActive ? 2 : 0, 0xffffff);
+
+        bg.setInteractive({ useHandCursor: true });
+
+        const txt = this.add.text(width / 2, height / 2, text, { fontSize: '12px', fill: '#ffffff' })
+            .setOrigin(0.5, 0.5);
+
+        bg.on('pointerdown', (pointer, localX, localY, event) => {
+            // Stop propagation to prevent clicking through to the map
+            // In Phaser 3, stopPropagation on the event object might not be enough if the scene input is also listening.
+            // We need to stop the pointer event from bubbling.
+            if (event && event.stopPropagation) event.stopPropagation();
+
+            // Visual Feedback
+            bg.setAlpha(0.5);
+            this.time.delayedCall(100, () => {
+                if (bg.scene) { // Check if still active/existing in scene
+                    bg.setAlpha(1);
+                }
+            });
+
+            console.log(`Button clicked: ${text}`);
+
+            // Defer the callback to the next frame to allow the input event to finish processing
+            // before we potentially destroy this button (which happens in updateInspectorUI).
+            this.time.delayedCall(0, () => {
+                callback();
+            });
+        });
+
+        container.add([bg, txt]);
+        return container;
     }
 
     placeFilter(x, y) {
@@ -251,6 +429,28 @@ export default class MainScene extends Phaser.Scene {
             this.add.existing(filter);
         } else {
             console.log("Can only place filters on water!");
+        }
+    }
+
+    spawnFishInArea(centerX, centerY, radius, count) {
+        if (!this.fishGroup) this.fishGroup = [];
+        for (let i = 0; i < count; i++) {
+            // Random point in circle
+            const angle = Math.random() * Math.PI * 2;
+            const r = Math.sqrt(Math.random()) * radius;
+            const x = centerX + r * Math.cos(angle);
+            const y = centerY + r * Math.sin(angle);
+
+            // Check if water
+            const gx = Math.floor(x / this.gridSystem.gridSize);
+            const gy = Math.floor(y / this.gridSystem.gridSize);
+
+            if (this.gridSystem.isWater(gx, gy)) {
+                // Create fish bounded to this area
+                const bounds = { x: centerX - radius, y: centerY - radius, width: radius * 2, height: radius * 2 };
+                const fish = new Fish(this, x, y, bounds, this.pollutionSystem);
+                this.fishGroup.push(fish);
+            }
         }
     }
 }

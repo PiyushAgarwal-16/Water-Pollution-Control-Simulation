@@ -48,6 +48,7 @@ export default class GridSystem {
                         x: x,
                         y: y,
                         pollution: 0,
+                        longTermPollution: 0,
                         worldX: x * this.gridSize,
                         worldY: y * this.gridSize
                     };

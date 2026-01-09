@@ -11,16 +11,38 @@ export default class Filter extends Phaser.GameObjects.Sprite {
         this.scene.add.existing(this);
 
         // Visual spin animation or similar to show it's working
-        this.scene.tweens.add({
+        this.spinTween = this.scene.tweens.add({
             targets: this,
             angle: 360,
             duration: 3000,
             repeat: -1,
             ease: 'Linear'
         });
+
+        this.isActive = true;
+        this.setInteractive({ useHandCursor: true });
+        this.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            if (this.scene.currentTool === 'none') {
+                this.scene.selectObject(this); // Select instead of placing
+            }
+        });
+    }
+
+    toggle(active) {
+        this.isActive = active;
+        if (this.isActive) {
+            this.clearTint();
+            if (this.spinTween.isPaused()) this.spinTween.resume();
+        } else {
+            this.setTint(0x555555); // Dark/OFF look
+            this.spinTween.pause();
+        }
     }
 
     update() {
+        if (!this.isActive) return;
+
         // Actively remove pollution from nearby cells
         // Filter radius: 3 tiles (approx 24 pixels if grid size is 8)
         // Let's affect a 5x5 grid area around the filter

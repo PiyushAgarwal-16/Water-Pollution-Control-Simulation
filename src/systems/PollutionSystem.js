@@ -26,7 +26,23 @@ export default class PollutionSystem {
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const cell = grid[y][x];
-                if (!cell || cell.pollution <= 0.01) continue;
+                if (!cell) continue;
+
+                // Long-term Degradation Logic
+                // If pollution is high, damage the ecosystem (sediment/algae/toxins accumulate)
+                if (cell.pollution > 0.2) {
+                    cell.longTermPollution += cell.pollution * 0.0005; // Slow accumulation
+                } else if (cell.pollution < 0.05) {
+                    // Natural recovery if clean
+                    cell.longTermPollution -= 0.0002;
+                }
+
+                // Clamp
+                if (cell.longTermPollution > 1) cell.longTermPollution = 1;
+                if (cell.longTermPollution < 0) cell.longTermPollution = 0;
+
+
+                if (cell.pollution <= 0.01) continue;
 
                 // Spread to neighbors
                 const neighbors = [
@@ -75,21 +91,29 @@ export default class PollutionSystem {
     getStatistics() {
         let totalWater = 0;
         let totalPollution = 0;
+        let totalLongTerm = 0;
 
         for (let y = 0; y < this.gridSystem.height; y++) {
             for (let x = 0; x < this.gridSystem.width; x++) {
                 const cell = this.gridSystem.grid[y][x];
-                if (cell && cell.isWater) {
+                if (cell && cell.grid) { // Checking if water, grid check logic handled by isWater typically but here grid[y][x] is null if land
+                    // Actually logic in GridSystem sets grid[y][x] to an object if water, null if land
+                }
+                if (cell) {
                     totalWater++;
                     totalPollution += cell.pollution;
+                    totalLongTerm += cell.longTermPollution || 0;
                 }
             }
         }
 
         const avgPollution = totalWater > 0 ? (totalPollution / totalWater) * 100 : 0;
+        const avgLongTerm = totalWater > 0 ? (totalLongTerm / totalWater) * 100 : 0;
+
         return {
             totalWater,
-            avgPollution
+            avgPollution,
+            avgLongTerm
         };
     }
 }

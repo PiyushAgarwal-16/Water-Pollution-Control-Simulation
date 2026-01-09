@@ -56,11 +56,12 @@ export default class Fish extends Phaser.GameObjects.Sprite {
             // Take damage based on pollution
             this.health -= cell.pollution * 0.1;
 
-            // Slow down
-            this.speed = Math.max(0.1, 0.5 * (this.health / 100));
+            // Slow down significantly when sick
+            this.speed = 0.02 + (0.06 * (this.health / 100));
         } else {
             // Recover slightly if clean water (optional)
-            this.speed = 0.05;
+            if (this.health < 100) this.health += 0.05;
+            this.speed = 0.08; // Normal swim speed
         }
 
         // Apply Tint based on Health always to prevent flashing

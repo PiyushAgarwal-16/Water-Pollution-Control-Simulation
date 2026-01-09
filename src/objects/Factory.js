@@ -3,11 +3,21 @@ export default class Factory extends Phaser.GameObjects.Sprite {
         super(scene, x, y, 'factory'); // We'll need a factory texture or use a placeholder
         this.scene = scene;
         this.pollutionSystem = pollutionSystem;
-        this.pollutionRate = 0.02; // Reduced slightly to balance with cleanup
+        this.pollutionRate = 0.05; // Default "high" output
+        this.setInteractive({ useHandCursor: true });
 
+        // Add a selection indicator (simple ring or tint)
+        // Add a selection indicator (simple ring or tint)
+        this.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.scene.selectObject(this);
+        });
+    }
 
-        this.scene.add.existing(this);
-        this.setOrigin(0.5, 1); // Anchor at bottom for placement
+    setPollutionLevel(level) {
+        // level: 0 to 200 (percentage)
+        this.pollutionRate = 0.05 * (level / 100);
+        console.log(`Factory pollution set to: ${this.pollutionRate} (${level}%)`);
     }
 
     update() {
