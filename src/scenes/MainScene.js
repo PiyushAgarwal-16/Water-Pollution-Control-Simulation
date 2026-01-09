@@ -11,6 +11,8 @@ export default class MainScene extends Phaser.Scene {
     constructor() {
         super('MainScene');
         this.currentTool = 'none'; // 'none', 'filter'
+        this.pollutionHistory = [];
+        this.lastPollutionCheck = 0;
     }
     // ... existing imports ...
 
@@ -200,41 +202,21 @@ export default class MainScene extends Phaser.Scene {
     }
 
     createToolbar() {
-        // Simple UI container
-        const toolbar = this.add.container(16, 60);
-        toolbar.setScrollFactor(0).setDepth(100);
-
-        // Filter Button (Background)
-        const bg = this.add.rectangle(0, 0, 140, 40, 0x444444)
-            .setOrigin(0, 0)
-            .setInteractive({ useHandCursor: true });
-
-        // Filter Text
-        const text = this.add.text(10, 10, 'Place Filter', { fontSize: '16px', fill: '#ffffff' });
-
-        toolbar.add([bg, text]);
-
-        // Interaction
-        bg.on('pointerdown', () => {
-            this.currentTool = this.currentTool === 'filter' ? 'none' : 'filter';
-            // Update Visual State
-            if (this.currentTool === 'filter') {
-                bg.setFillStyle(0x00aa00); // Green when active
-                text.setText('Click to Place');
-            } else {
-                bg.setFillStyle(0x444444); // Gray when inactive
-                text.setText('Place Filter');
-            }
-        });
-
         this.createHUD();
     }
 
     createHUD() {
-        const hudBg = this.add.rectangle(16, 16, 220, 55, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(100);
+        const hudBg = this.add.rectangle(16, 16, 260, 82, 0x000000, 0.7).setOrigin(0, 0).setScrollFactor(0).setDepth(100);
         this.hudText = this.add.text(26, 26, 'Loading stats...', {
             fontSize: '14px',
-            fill: '#ffffff'
+            fill: '#ffffff',
+            lineSpacing: 2
+        }).setScrollFactor(0).setDepth(101);
+
+        this.statusText = this.add.text(26, 74, '', {
+            fontSize: '11px',
+            fill: '#ffcc00',
+            fontStyle: 'italic'
         }).setScrollFactor(0).setDepth(101);
 
         // Force initial update
@@ -255,7 +237,65 @@ export default class MainScene extends Phaser.Scene {
                 `River Health: ${health}%\n` +
                 `Fish: ${liveFish}/${totalFish}`
             );
+
+            // Track pollution trend (update every 2 seconds)
+            if (time - this.lastPollutionCheck > 2000) {
+                this.pollutionHistory.push(stats.avgPollution);
+                if (this.pollutionHistory.length > 5) this.pollutionHistory.shift();
+                this.lastPollutionCheck = time;
+            }
+
+            // Generate water quality message
+            this.updateWaterQualityMessage(stats, liveFish, totalFish);
         }
+    }
+
+    updateWaterQualityMessage(stats, liveFish, totalFish) {
+        if (!this.statusText) return;
+
+        let message = '';
+        let color = '#ffcc00';
+
+        // Calculate trend
+        let trend = 'stable';
+        if (this.pollutionHistory.length >= 3) {
+            const recent = this.pollutionHistory.slice(-3);
+            const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+            const oldest = recent[0];
+            const newest = recent[recent.length - 1];
+            
+            if (newest < oldest - 2) trend = 'improving';
+            else if (newest > oldest + 2) trend = 'worsening';
+        }
+
+        // Determine message based on pollution level, trend, and fish health
+        const deathRate = (totalFish - liveFish) / totalFish;
+        
+        if (stats.avgPollution < 5 && stats.avgLongTerm < 20) {
+            message = '✓ Water quality improving';
+            color = '#00ff00';
+        } else if (trend === 'improving') {
+            message = '↓ Pollution decreasing';
+            color = '#88ff88';
+        } else if (stats.avgPollution > 30 || stats.avgLongTerm > 60) {
+            message = '⚠ Ecosystem under stress';
+            color = '#ff4444';
+        } else if (trend === 'worsening') {
+            message = '↑ Pollution accumulating';
+            color = '#ffaa00';
+        } else if (deathRate > 0.3) {
+            message = '⚠ Fish population declining';
+            color = '#ff8800';
+        } else if (stats.avgPollution > 15) {
+            message = '~ Moderate pollution detected';
+            color = '#ffcc00';
+        } else {
+            message = '~ Water quality stable';
+            color = '#aaaaff';
+        }
+
+        this.statusText.setText(message);
+        this.statusText.setColor(color);
     }
 
     selectObject(object) {
