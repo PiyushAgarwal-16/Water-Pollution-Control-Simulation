@@ -138,6 +138,10 @@ export default class MainScene extends Phaser.Scene {
             if (this.currentTool === 'filter') {
                 const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
                 this.placeFilter(worldPoint.x, worldPoint.y);
+            } else {
+                // Check if clicked on water/pond for educational overlay
+                const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+                this.checkEducationalClick(worldPoint.x, worldPoint.y);
             }
         });
     }
@@ -263,14 +267,14 @@ export default class MainScene extends Phaser.Scene {
             const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
             const oldest = recent[0];
             const newest = recent[recent.length - 1];
-            
+
             if (newest < oldest - 2) trend = 'improving';
             else if (newest > oldest + 2) trend = 'worsening';
         }
 
         // Determine message based on pollution level, trend, and fish health
         const deathRate = (totalFish - liveFish) / totalFish;
-        
+
         if (stats.avgPollution < 5 && stats.avgLongTerm < 20) {
             message = '✓ Water quality improving';
             color = '#00ff00';
@@ -491,6 +495,212 @@ export default class MainScene extends Phaser.Scene {
                 const fish = new Fish(this, x, y, bounds, this.pollutionSystem);
                 this.fishGroup.push(fish);
             }
+        }
+    }
+
+    checkEducationalClick(worldX, worldY) {
+        // Check if clicked on water/pond
+        const gx = Math.floor(worldX / this.gridSystem.gridSize);
+        const gy = Math.floor(worldY / this.gridSystem.gridSize);
+
+        if (this.gridSystem.isWater(gx, gy)) {
+            this.showPondOverlay(worldX, worldY, gx, gy);
+        }
+    }
+
+    showFactoryOverlay(factory) {
+        this.hideEducationalOverlay();
+
+        const x = this.cameras.main.width / 2;
+        const y = this.cameras.main.height - 200;
+
+        this.educationalOverlay = this.add.container(x, y).setScrollFactor(0).setDepth(200);
+
+        const width = 380;
+        const height = 180;
+
+        // Interactive background that closes on click
+        const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.95)
+            .setOrigin(0.5, 0.5)
+            .setStrokeStyle(3, 0x4488ff)
+            .setInteractive();
+
+        // Close on background click (with stopPropagation to prevent map interaction)
+        bg.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.hideEducationalOverlay();
+        });
+
+        // Close button (X)
+        const closeBtn = this.add.text(width / 2 - 15, -height / 2 + 10, '✕', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '20px',
+            fill: '#888888',
+            fontStyle: 'bold'
+        }).setOrigin(0.5, 0.5)
+            .setInteractive({ useHandCursor: true });
+
+        closeBtn.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.hideEducationalOverlay();
+        });
+
+        closeBtn.on('pointerover', () => closeBtn.setFill('#ffffff'));
+        closeBtn.on('pointerout', () => closeBtn.setFill('#888888'));
+
+        const title = this.add.text(0, -70, '🏭 Factory Information', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '18px',
+            fill: '#4488ff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5, 0.5);
+
+        const pollutionLevel = factory.pollutionRate >= 0.04 ? 'High' : factory.pollutionRate >= 0.02 ? 'Medium' : 'Low';
+        const pollutionColor = factory.pollutionRate >= 0.04 ? '#ff4444' : factory.pollutionRate >= 0.02 ? '#ffaa44' : '#44ff44';
+
+        const info = this.add.text(0, -20,
+            `Pollution Output: ${pollutionLevel}\n` +
+            `Rate: ${(factory.pollutionRate * 100).toFixed(1)}%/sec\n\n` +
+            `This factory releases industrial waste\n` +
+            `that flows downstream, contaminating\n` +
+            `rivers and ponds. Reduce output to\n` +
+            `protect aquatic life.`,
+            {
+                fontFamily: 'Inter, Arial, sans-serif',
+                fontSize: '13px',
+                fill: '#e0e0e0',
+                align: 'center',
+                lineSpacing: 4
+            }
+        ).setOrigin(0.5, 0);
+
+        // Highlight pollution level with color
+        const levelIndicator = this.add.circle(-100, -18, 6, parseInt(pollutionColor.replace('#', '0x')));
+
+        const footer = this.add.text(0, 70, 'Click anywhere to close', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '11px',
+            fill: '#666666',
+            fontStyle: 'italic'
+        }).setOrigin(0.5, 0.5);
+
+        this.educationalOverlay.add([bg, closeBtn, title, info, levelIndicator, footer]);
+    }
+
+    showPondOverlay(worldX, worldY, gx, gy) {
+        this.hideEducationalOverlay();
+
+        const cell = this.gridSystem.getCell(gx, gy);
+        if (!cell) return;
+
+        // Get fish in this area
+        const nearbyFish = this.fishGroup.filter(fish => {
+            const distance = Phaser.Math.Distance.Between(fish.x, fish.y, worldX, worldY);
+            return distance < 100;
+        });
+
+        const liveFish = nearbyFish.filter(f => !f.isDead).length;
+        const avgHealth = liveFish > 0 ?
+            nearbyFish.filter(f => !f.isDead).reduce((sum, f) => sum + f.health, 0) / liveFish : 0;
+
+        const x = this.cameras.main.width / 2;
+        const y = this.cameras.main.height - 220;
+
+        this.educationalOverlay = this.add.container(x, y).setScrollFactor(0).setDepth(200);
+
+        const width = 400;
+        const height = 220;
+
+        // Interactive background that closes on click
+        const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.95)
+            .setOrigin(0.5, 0.5)
+            .setStrokeStyle(3, 0x44aaff)
+            .setInteractive();
+
+        bg.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.hideEducationalOverlay();
+        });
+
+        // Close button (X)
+        const closeBtn = this.add.text(width / 2 - 15, -height / 2 + 10, '✕', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '20px',
+            fill: '#888888',
+            fontStyle: 'bold'
+        }).setOrigin(0.5, 0.5)
+            .setInteractive({ useHandCursor: true });
+
+        closeBtn.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.hideEducationalOverlay();
+        });
+
+        closeBtn.on('pointerover', () => closeBtn.setFill('#ffffff'));
+        closeBtn.on('pointerout', () => closeBtn.setFill('#888888'));
+
+        const title = this.add.text(0, -95, '💧 Water Body Information', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '18px',
+            fill: '#44aaff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5, 0.5);
+
+        const pollution = cell.pollution * 100;
+        const longTermPollution = cell.longTermPollution * 100;
+        const waterQuality = pollution < 5 ? 'Clean' : pollution < 20 ? 'Fair' : pollution < 40 ? 'Poor' : 'Toxic';
+        const waterColor = pollution < 5 ? '#44ff44' : pollution < 20 ? '#88ff44' : pollution < 40 ? '#ffaa44' : '#ff4444';
+
+        const fishStatus = avgHealth > 80 ? 'Healthy' : avgHealth > 50 ? 'Stressed' : avgHealth > 20 ? 'Sick' : 'Critical';
+        const fishColor = avgHealth > 80 ? '#44ff44' : avgHealth > 50 ? '#ffaa44' : '#ff4444';
+
+        let explanation = '';
+        if (pollution > 30) {
+            explanation = 'High pollution is poisoning fish and\ndegrading the ecosystem. Place filters\nor reduce factory output to save wildlife.';
+        } else if (pollution > 10) {
+            explanation = 'Moderate pollution is building up.\nFish are showing signs of stress.\nAct now to prevent long-term damage.';
+        } else if (longTermPollution > 20) {
+            explanation = 'Water appears clean now, but\nresidual pollutants remain in sediment.\nContinued care is needed for recovery.';
+        } else {
+            explanation = 'Water quality is good! Fish are\nthriving. Keep pollution low to\nmaintain a healthy ecosystem.';
+        }
+
+        const info = this.add.text(0, -30,
+            `Water Quality: ${waterQuality}\n` +
+            `Active Pollution: ${pollution.toFixed(1)}%\n` +
+            `River Health: ${(100 - longTermPollution).toFixed(1)}%\n` +
+            `Fish Nearby: ${liveFish} (${fishStatus})\n\n` +
+            `${explanation}`,
+            {
+                fontFamily: 'Inter, Arial, sans-serif',
+                fontSize: '13px',
+                fill: '#e0e0e0',
+                align: 'center',
+                lineSpacing: 4
+            }
+        ).setOrigin(0.5, 0);
+
+        // Color indicators
+        const waterIndicator = this.add.circle(-145, -28, 6, parseInt(waterColor.replace('#', '0x')));
+        const fishIndicator = liveFish > 0 ? this.add.circle(-145, 7, 6, parseInt(fishColor.replace('#', '0x'))) : null;
+
+        const footer = this.add.text(0, 95, 'Click anywhere to close', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '11px',
+            fill: '#666666',
+            fontStyle: 'italic'
+        }).setOrigin(0.5, 0.5);
+
+        const elements = [bg, closeBtn, title, info, waterIndicator, footer];
+        if (fishIndicator) elements.push(fishIndicator);
+
+        this.educationalOverlay.add(elements);
+    }
+
+    hideEducationalOverlay() {
+        if (this.educationalOverlay) {
+            this.educationalOverlay.destroy();
+            this.educationalOverlay = null;
         }
     }
 }

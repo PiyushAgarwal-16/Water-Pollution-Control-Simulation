@@ -11,6 +11,7 @@ export default class Factory extends Phaser.GameObjects.Sprite {
         this.on('pointerdown', (pointer, localX, localY, event) => {
             if (event && event.stopPropagation) event.stopPropagation();
             this.scene.selectObject(this);
+            this.scene.showFactoryOverlay(this);
         });
     }
 
