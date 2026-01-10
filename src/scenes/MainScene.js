@@ -61,6 +61,10 @@ export default class MainScene extends Phaser.Scene {
             this.showEcosystemNotification(newState, oldState, score);
         });
 
+        // Initialize intervention feedback message queue
+        this.messageQueue = [];
+        this.currentFeedbackMessage = null;
+
         // Define Ponds (approximate rectangles based on map)
         const ponds = [
             { x: 550, y: 350, width: 150, height: 150 }, // Top Right Pond
@@ -368,18 +372,21 @@ export default class MainScene extends Phaser.Scene {
             const strictBtn = this.createButton(0, 10, 'Strict', 0x00aa00, () => {
                 this.selectedObject.setPollutionLevel(20); // 0.01
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Prevention is better than cleanup - great choice!', 'positive');
             }, isApprox(0.01));
 
             // Standard (Med - 0.025)
             const stdBtn = this.createButton(50, 10, 'Std', 0xaaaa00, () => {
                 this.selectedObject.setPollutionLevel(50); // 0.025
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Moderate pollution controls applied', 'neutral');
             }, isApprox(0.025));
 
             // Lax (High - 0.05)
             const laxBtn = this.createButton(100, 10, 'Lax', 0xaa0000, () => {
                 this.selectedObject.setPollutionLevel(100); // 0.05
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Warning: High pollution output will harm ecosystem', 'warning');
             }, isApprox(0.05));
 
             const valText = this.add.text(0, 40, `Discharge: ${(rate * 2000).toFixed(0)}%`, { fontSize: '10px' });
@@ -398,18 +405,21 @@ export default class MainScene extends Phaser.Scene {
             const sustBtn = this.createButton(0, 10, 'Org', 0x00aa00, () => {
                 this.selectedObject.setPollutionLevel(0); // Sustainable
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Organic methods protect water quality long-term', 'positive');
             }, isApprox(0.01));
 
             // Standard (Med - 0.03)
             const stdBtn = this.createButton(50, 10, 'Std', 0xaaaa00, () => {
                 this.selectedObject.setPollutionLevel(50); // Standard
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Standard farming practices - moderate runoff expected', 'neutral');
             }, isApprox(0.03));
 
             // Intensive (High - 0.05)
             const intBtn = this.createButton(100, 10, 'Int', 0xaa0000, () => {
                 this.selectedObject.setPollutionLevel(100); // Intensive
                 this.updateInspectorUI();
+                this.showInterventionFeedback('Warning: High fertilizer runoff will accumulate', 'warning');
             }, isApprox(0.05));
 
             const valText = this.add.text(0, 40, `Runoff Index: ${(rate * 2000).toFixed(0)}`, { fontSize: '10px' });
@@ -502,8 +512,45 @@ export default class MainScene extends Phaser.Scene {
         if (this.gridSystem.isWater(gx, gy)) {
             const filter = new Filter(this, x, y, this.pollutionSystem);
             this.add.existing(filter);
+
+            // Find nearest pollution source for location-based feedback
+            let minDistance = Infinity;
+            let nearestSource = null;
+
+            // Check all factories and farms
+            this.children.list.forEach(child => {
+                if (child instanceof Factory || child instanceof Farm) {
+                    const dist = Phaser.Math.Distance.Between(x, y, child.x, child.y);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        nearestSource = child;
+                    }
+                }
+            });
+
+            // Location-based feedback
+            if (minDistance < 150) {
+                this.showInterventionFeedback(
+                    'Excellent! Upstream filtering is most effective',
+                    'positive'
+                );
+            } else if (minDistance < 300) {
+                this.showInterventionFeedback(
+                    'Filter activated! Reduces downstream pollution over time',
+                    'neutral'
+                );
+            } else {
+                this.showInterventionFeedback(
+                    'Filter placed. Upstream locations work better',
+                    'neutral'
+                );
+            }
         } else {
             console.log("Can only place filters on water!");
+            this.showInterventionFeedback(
+                'Filters must be placed on water',
+                'warning'
+            );
         }
     }
 
@@ -816,6 +863,107 @@ export default class MainScene extends Phaser.Scene {
         if (this.ecosystemNotification) {
             this.ecosystemNotification.destroy();
             this.ecosystemNotification = null;
+        }
+    }
+
+    /**
+     * Show intervention feedback message with fade animation
+     * @param {string} message - The message to display
+     * @param {string} type - 'positive', 'neutral', or 'warning'
+     */
+    showInterventionFeedback(message, type = 'neutral') {
+        // Add to queue
+        this.messageQueue.push({ message, type });
+
+        // Process queue if no message currently showing
+        if (!this.currentFeedbackMessage) {
+            this.processMessageQueue();
+        }
+    }
+
+    processMessageQueue() {
+        if (this.messageQueue.length === 0) {
+            this.currentFeedbackMessage = null;
+            return;
+        }
+
+        const { message, type } = this.messageQueue.shift();
+
+        const x = this.cameras.main.width / 2;
+        const y = this.cameras.main.height - 100;
+
+        this.currentFeedbackMessage = this.add.container(x, y)
+            .setScrollFactor(0)
+            .setDepth(200)
+            .setAlpha(0); // Start invisible for fade in
+
+        const width = 400;
+        const height = 80;
+
+        // Color coding based on type
+        const colors = {
+            positive: 0x44ff44,
+            neutral: 0x4488ff,
+            warning: 0xff4444
+        };
+        const borderColor = colors[type] || colors.neutral;
+
+        // Background
+        const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.9)
+            .setOrigin(0.5, 0.5)
+            .setStrokeStyle(3, borderColor);
+
+        // Icon based on type
+        const icons = {
+            positive: '✓',
+            neutral: '🔧',
+            warning: '⚠'
+        };
+        const icon = icons[type] || icons.neutral;
+
+        // Message text
+        const msgText = this.add.text(0, 0, `${icon} ${message}`, {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '14px',
+            fill: '#ffffff',
+            align: 'center',
+            wordWrap: { width: 360, useAdvancedWrap: true }
+        }).setOrigin(0.5, 0.5);
+
+        this.currentFeedbackMessage.add([bg, msgText]);
+
+        // Fade in animation
+        this.tweens.add({
+            targets: this.currentFeedbackMessage,
+            alpha: 1,
+            duration: 200,
+            ease: 'Power2'
+        });
+
+        // Auto-hide after 4 seconds
+        this.time.delayedCall(4000, () => {
+            this.hideInterventionFeedback();
+        });
+    }
+
+    hideInterventionFeedback() {
+        if (this.currentFeedbackMessage) {
+            // Fade out animation
+            this.tweens.add({
+                targets: this.currentFeedbackMessage,
+                alpha: 0,
+                duration: 800,
+                ease: 'Power2',
+                onComplete: () => {
+                    if (this.currentFeedbackMessage) {
+                        this.currentFeedbackMessage.destroy();
+                        this.currentFeedbackMessage = null;
+
+                        // Process next message in queue
+                        this.processMessageQueue();
+                    }
+                }
+            });
         }
     }
 }
