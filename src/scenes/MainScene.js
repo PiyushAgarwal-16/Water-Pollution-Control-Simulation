@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import GridSystem from '../systems/GridSystem';
 import PollutionSystem from '../systems/PollutionSystem';
+import EcosystemHealthSystem from '../systems/EcosystemHealthSystem';
 import Factory from '../objects/Factory';
 import Filter from '../objects/Filter';
 import Farm from '../objects/Farm';
@@ -51,8 +52,14 @@ export default class MainScene extends Phaser.Scene {
 
         this.gridSystem = new GridSystem(this, 'world-map', 8);
         this.pollutionSystem = new PollutionSystem(this.gridSystem);
+        this.ecosystemHealth = new EcosystemHealthSystem();
         this.pollutionGraphics = this.add.graphics();
         this.pollutionGraphics.setAlpha(0.6);
+
+        // Setup ecosystem state change callback
+        this.ecosystemHealth.onStateChange((newState, oldState, score) => {
+            this.showEcosystemNotification(newState, oldState, score);
+        });
 
         // Define Ponds (approximate rectangles based on map)
         const ponds = [
@@ -233,24 +240,48 @@ export default class MainScene extends Phaser.Scene {
             const liveFish = this.fishGroup.filter(f => !f.isDead).length;
             const totalFish = this.fishGroup.length;
 
+            // Calculate average fish health
+            const aliveFish = this.fishGroup.filter(f => !f.isDead);
+            const avgFishHealth = aliveFish.length > 0
+                ? aliveFish.reduce((sum, f) => sum + f.health, 0) / aliveFish.length
+                : 0;
+
             // Calculate "River Health" as inverse of long-term pollution
-            const health = Math.max(0, 100 - stats.avgLongTerm).toFixed(1);
+            const riverHealth = Math.max(0, 100 - stats.avgLongTerm);
+
+            // Update ecosystem health
+            this.ecosystemHealth.calculateHealth({
+                liveFish,
+                totalFish,
+                avgFishHealth,
+                activePollution: stats.avgPollution,
+                riverHealth
+            });
+            this.ecosystemHealth.updateState();
+
+            const stateInfo = this.ecosystemHealth.getStateInfo();
 
             this.hudText.setText(
-                `Pollution (Active): ${stats.avgPollution.toFixed(1)}%\n` +
-                `River Health: ${health}%\n` +
-                `Fish: ${liveFish}/${totalFish}`
+                `Pollution: ${stats.avgPollution.toFixed(1)}% | River Health: ${riverHealth.toFixed(1)}%\n` +
+                `Fish: ${liveFish}/${totalFish}\n` +
+                `Ecosystem: ${stateInfo.icon} ${stateInfo.name} (${this.ecosystemHealth.healthScore.toFixed(0)})`
             );
 
+            // Update status text color based on state
+            if (this.statusText) {
+                this.statusText.setFill(stateInfo.colorHex);
+                this.statusText.setText(stateInfo.message);
+            }
+
             // Track pollution trend (update every 2 seconds)
+            if (!this.lastPollutionCheck) this.lastPollutionCheck = 0;
+            if (!this.pollutionHistory) this.pollutionHistory = [];
+
             if (time - this.lastPollutionCheck > 2000) {
                 this.pollutionHistory.push(stats.avgPollution);
                 if (this.pollutionHistory.length > 5) this.pollutionHistory.shift();
                 this.lastPollutionCheck = time;
             }
-
-            // Generate water quality message
-            this.updateWaterQualityMessage(stats, liveFish, totalFish);
         }
     }
 
@@ -700,6 +731,91 @@ export default class MainScene extends Phaser.Scene {
         if (this.educationalOverlay) {
             this.educationalOverlay.destroy();
             this.educationalOverlay = null;
+        }
+    }
+
+    showEcosystemNotification(newState, oldState, score) {
+        // Hide any existing notification
+        this.hideEcosystemNotification();
+
+        const explanation = this.ecosystemHealth.getStateChangeExplanation(newState, oldState);
+        const stateInfo = this.ecosystemHealth.getStateInfo();
+
+        const x = this.cameras.main.width / 2;
+        const y = 100;
+
+        this.ecosystemNotification = this.add.container(x, y).setScrollFactor(0).setDepth(250);
+
+        const width = 420;
+        const height = 200;
+
+        // Background with state color border
+        const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.95)
+            .setOrigin(0.5, 0.5)
+            .setStrokeStyle(4, stateInfo.color)
+            .setInteractive();
+
+        // Prevent clicks from going through
+        bg.on('pointerdown', (pointer, localX, localY, event) => {
+            if (event && event.stopPropagation) event.stopPropagation();
+            this.hideEcosystemNotification();
+        });
+
+        // Title with icon
+        const title = this.add.text(0, -80, explanation.title, {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '18px',
+            fill: stateInfo.colorHex,
+            fontStyle: 'bold',
+            align: 'center'
+        }).setOrigin(0.5, 0.5);
+
+        // Cause explanation
+        const cause = this.add.text(0, -45, explanation.cause, {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '13px',
+            fill: '#ffffff',
+            align: 'center',
+            wordWrap: { width: 380, useAdvancedWrap: true }
+        }).setOrigin(0.5, 0.5);
+
+        // Actions header
+        const actionsHeader = this.add.text(0, 0, 'Actions:', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '12px',
+            fill: '#ffcc00',
+            fontStyle: 'bold'
+        }).setOrigin(0.5, 0.5);
+
+        // Action items
+        const actionsList = explanation.actions.map((action, i) => `• ${action}`).join('\n');
+        const actions = this.add.text(0, 35, actionsList, {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '12px',
+            fill: '#e0e0e0',
+            align: 'left'
+        }).setOrigin(0.5, 0.5);
+
+        // Close instruction
+        const closeText = this.add.text(0, 85, 'Click anywhere to dismiss', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '11px',
+            fill: '#666666',
+            fontStyle: 'italic'
+        }).setOrigin(0.5, 0.5);
+
+        this.ecosystemNotification.add([bg, title, cause, actionsHeader, actions, closeText]);
+
+        // Auto-dismiss after 10 seconds
+        this.time.delayedCall(10000, () => {
+            this.hideEcosystemNotification();
+        });
+    }
+
+    hideEcosystemNotification() {
+        if (this.ecosystemNotification) {
+            this.ecosystemNotification.destroy();
+            this.ecosystemNotification = null;
         }
     }
 }
