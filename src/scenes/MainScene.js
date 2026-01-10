@@ -65,6 +65,11 @@ export default class MainScene extends Phaser.Scene {
         this.messageQueue = [];
         this.currentFeedbackMessage = null;
 
+        // Time-based message tracking
+        this.lastTimeMessage = 0;
+        this.timeMessageInterval = 45000; // 45 seconds
+        this.timeMessageIndex = 0;
+
         // Define Ponds (approximate rectangles based on map)
         const ponds = [
             { x: 550, y: 350, width: 150, height: 150 }, // Top Right Pond
@@ -185,6 +190,9 @@ export default class MainScene extends Phaser.Scene {
 
         // Update HUD
         if (this.hudText) this.updateHUD(time);
+
+        // Check for periodic time-based messages
+        this.checkForTimeMessage(time);
     }
 
     drawPollution() {
@@ -965,5 +973,78 @@ export default class MainScene extends Phaser.Scene {
                 }
             });
         }
+    }
+
+    /**
+     * Check if it's time to show a periodic environmental message
+     */
+    checkForTimeMessage(time) {
+        if (time - this.lastTimeMessage > this.timeMessageInterval) {
+            this.showTimeBasedMessage();
+            this.lastTimeMessage = time;
+        }
+    }
+
+    /**
+     * Show a time-based environmental message
+     */
+    showTimeBasedMessage() {
+        const messages = this.getTimeMessagePool();
+        if (messages.length === 0) return;
+
+        const message = messages[this.timeMessageIndex % messages.length];
+        this.timeMessageIndex++;
+
+        this.showInterventionFeedback(message, 'neutral');
+    }
+
+    /**
+     * Get context-aware message pool based on ecosystem state
+     */
+    getTimeMessagePool() {
+        const state = this.ecosystemHealth.currentState;
+
+        const generalMessages = [
+            'Environmental damage accumulates over time',
+            'Recovery takes longer than pollution',
+            'Each decision has lasting consequences',
+            'Natural healing is a slow process',
+            'Small pollution sources add up to big problems'
+        ];
+
+        const criticalMessages = [
+            'Your ecosystem is in crisis. Recovery will take time',
+            'Severe damage has accumulated. Restoration is urgent',
+            'Clean water took time to pollute, will take longer to restore',
+            'Environmental damage accumulates over time',
+            'Recovery takes longer than pollution'
+        ];
+
+        const stressedMessages = [
+            'Your ecosystem is degrading. Act before it\'s too late',
+            'Pollution accumulates faster when ecosystem is stressed',
+            'Prevention now is easier than restoration later',
+            'Environmental damage accumulates over time',
+            'Recovery takes longer than pollution'
+        ];
+
+        const healthyMessages = [
+            'Maintaining balance requires constant vigilance',
+            'Good management today prevents crises tomorrow',
+            'Ecosystems are fragile. Protect what you have',
+            'Each decision has lasting consequences',
+            'Natural healing is a slow process'
+        ];
+
+        // Return context-appropriate messages
+        if (state === 'CRITICAL') {
+            return criticalMessages;
+        } else if (state === 'STRESSED') {
+            return stressedMessages;
+        } else if (state === 'HEALTHY') {
+            return healthyMessages;
+        }
+
+        return generalMessages;
     }
 }
