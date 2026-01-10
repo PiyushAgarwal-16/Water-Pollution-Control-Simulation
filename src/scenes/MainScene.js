@@ -72,11 +72,16 @@ export default class MainScene extends Phaser.Scene {
 
         // Define Ponds (approximate rectangles based on map)
         const ponds = [
-            { x: 550, y: 350, width: 150, height: 150 }, // Top Right Pond
-            { x: 550, y: 650, width: 120, height: 100 }  // Bottom Right Pond (approx)
+            { x: 350, y: 250, width: 100, height: 100 },  // Middle area
+            { x: 550, y: 350, width: 150, height: 150 },  // Top Right Pond
+            { x: 550, y: 650, width: 120, height: 100 },  // Bottom Right Pond
+            { x: 200, y: 450, width: 100, height: 100 }   // Bottom Left area
             // Note: coordinates need to match the visual map 1:1. 
             // I'll use safer generic bounds for "Pond Areas"
         ];
+
+        // Create visual pond indicators
+        this.createPondIndicators(ponds);
 
         // Let's debug-draw ponds to verify location (temporary)
         // Or better, just spawn fish in "Water" areas near specific points
@@ -145,6 +150,9 @@ export default class MainScene extends Phaser.Scene {
 
         // UI Toolbar
         this.createToolbar();
+
+        // Help Guide Panel
+        this.createHelpGuide();
 
         // Input Handling for Placement
         this.input.on('pointerdown', (pointer) => {
@@ -810,6 +818,60 @@ export default class MainScene extends Phaser.Scene {
         }
     }
 
+    createPondIndicators(ponds) {
+        // Create visual indicators for pond areas
+        ponds.forEach((pond, index) => {
+            // Create a water droplet icon using text emoji
+            const indicator = this.add.text(pond.x, pond.y, '💧', {
+                fontSize: '32px'
+            })
+                .setOrigin(0.5, 0.5)
+                .setInteractive({ useHandCursor: true })
+                .setDepth(50); // Above water, below UI
+
+            console.log(`Created pond indicator #${index} at (${pond.x}, ${pond.y})`);
+
+            // Hover effect
+            indicator.on('pointerover', () => {
+                indicator.setScale(1.2);
+                indicator.setAlpha(1);
+            });
+
+            indicator.on('pointerout', () => {
+                indicator.setScale(1);
+                indicator.setAlpha(0.8);
+            });
+
+            // Click to show pond overlay - USE INDICATOR'S POSITION
+            indicator.on('pointerdown', (pointer, localX, localY, event) => {
+                if (event && event.stopPropagation) event.stopPropagation();
+
+                console.log(`Pond indicator clicked at (${indicator.x}, ${indicator.y})`);
+
+                // Use indicator's own world position
+                const gx = Math.floor(indicator.x / this.gridSystem.gridSize);
+                const gy = Math.floor(indicator.y / this.gridSystem.gridSize);
+
+                console.log(`Grid position: (${gx}, ${gy})`);
+
+                this.showPondOverlay(indicator.x, indicator.y, gx, gy);
+            });
+
+            // Start with slight transparency to not be too intrusive
+            indicator.setAlpha(0.8);
+
+            // Optional: Gentle pulsing animation to draw attention
+            this.tweens.add({
+                targets: indicator,
+                alpha: 0.5,
+                duration: 1500,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        });
+    }
+
     showEcosystemNotification(newState, oldState, score) {
         // Hide any existing notification
         this.hideEcosystemNotification();
@@ -1067,5 +1129,55 @@ export default class MainScene extends Phaser.Scene {
         }
 
         return generalMessages;
+    }
+
+    createHelpGuide() {
+        // Position in black space to the right of the game canvas
+        const x = this.cameras.main.width + 20;  // Right of game canvas
+        const y = 10; // Top
+
+        const container = this.add.container(x, y)
+            .setScrollFactor(0)
+            .setDepth(100);
+
+        const guideWidth = 220;
+        const guideHeight = 320;  // Shorter without Actions section
+
+        const bg = this.add.rectangle(0, 0, guideWidth, guideHeight, 0x000000, 0.85)
+            .setOrigin(0, 0)
+            .setScrollFactor(0);
+
+        const title = this.add.text(10, 10, '📖 Game Guide', {
+            fontFamily: 'Inter, Arial, sans-serif',
+            fontSize: '16px',
+            fill: '#ffcc00',
+            fontStyle: 'bold'
+        }).setScrollFactor(0);
+
+        const guide = this.add.text(10, 40,
+            '🎮 CONTROLS\n' +
+            '• Arrow Keys / WASD\n' +
+            '  Move camera\n\n' +
+            '🏭 INTERACTIONS\n' +
+            '• Click Factory\n' +
+            '  Adjust pollution output\n' +
+            '• Click Farm\n' +
+            '  Change farming practices\n' +
+            '• Click 💧 Droplet\n' +
+            '  View water quality\n\n' +
+            '🎯 GOAL\n' +
+            '• Keep fish alive\n' +
+            '• Reduce pollution\n' +
+            '• Protect ecosystem\n' +
+            '• Monitor health status',
+            {
+                fontFamily: 'Inter, Arial, sans-serif',
+                fontSize: '11px',
+                fill: '#ffffff',
+                lineSpacing: 3
+            }
+        ).setScrollFactor(0);
+
+        container.add([bg, title, guide]);
     }
 }
