@@ -372,7 +372,8 @@ export default class MainScene extends Phaser.Scene {
             const rate = this.selectedObject.pollutionRate;
 
             // Factory UI - "Discharge Policy"
-            const title = this.add.text(0, -15, 'Industrial Policy:', { fontSize: '10px', fill: '#aaaaaa' });
+            const title = this.add.text(0, -15, 'Industrial Policy:', { fontSize: '10px', fill: '#aaaaaa' })
+                .setScrollFactor(0);
 
             const isApprox = (val) => Math.abs(rate - val) < 0.005;
 
@@ -397,7 +398,8 @@ export default class MainScene extends Phaser.Scene {
                 this.showInterventionFeedback('Warning: High pollution output will harm ecosystem', 'warning');
             }, isApprox(0.05));
 
-            const valText = this.add.text(0, 40, `Discharge: ${(rate * 2000).toFixed(0)}%`, { fontSize: '10px' });
+            const valText = this.add.text(0, 40, `Discharge: ${(rate * 2000).toFixed(0)}%`, { fontSize: '10px' })
+                .setScrollFactor(0);
 
             this.inspectorControls.add([title, strictBtn, stdBtn, laxBtn, valText]);
 
@@ -405,7 +407,8 @@ export default class MainScene extends Phaser.Scene {
             const rate = this.selectedObject.pollutionRate;
 
             // Farm UI - "Farming Practice"
-            const title = this.add.text(0, -15, 'Farming Practice:', { fontSize: '10px', fill: '#aaaaaa' });
+            const title = this.add.text(0, -15, 'Farming Practice:', { fontSize: '10px', fill: '#aaaaaa' })
+                .setScrollFactor(0);
 
             const isApprox = (val) => Math.abs(rate - val) < 0.005;
 
@@ -430,12 +433,14 @@ export default class MainScene extends Phaser.Scene {
                 this.showInterventionFeedback('Warning: High fertilizer runoff will accumulate', 'warning');
             }, isApprox(0.05));
 
-            const valText = this.add.text(0, 40, `Runoff Index: ${(rate * 2000).toFixed(0)}`, { fontSize: '10px' });
+            const valText = this.add.text(0, 40, `Runoff Index: ${(rate * 2000).toFixed(0)}`, { fontSize: '10px' })
+                .setScrollFactor(0);
 
             this.inspectorControls.add([title, sustBtn, stdBtn, intBtn, valText]);
 
         } else if (this.selectedObject instanceof Filter) {
-            const label = this.add.text(0, 0, 'Status:', { fontSize: '12px', fill: '#ffffff' });
+            const label = this.add.text(0, 0, 'Status:', { fontSize: '12px', fill: '#ffffff' })
+                .setScrollFactor(0);
 
             const color = this.selectedObject.isActive ? 0x00aa00 : 0xaa0000;
             const text = this.selectedObject.isActive ? 'Active' : 'Inactive';
@@ -457,10 +462,13 @@ export default class MainScene extends Phaser.Scene {
         // Make background interactive to block clicks
         const bg = this.add.rectangle(0, 0, 160, 100, 0x222222, 0.9)
             .setOrigin(0, 0)
-            .setInteractive();
+            .setInteractive()
+            .setScrollFactor(0);
 
-        this.inspectorTitle = this.add.text(10, 10, 'Inspector', { fontSize: '14px', fill: '#ffcc00' });
-        this.inspectorControls = this.add.container(10, 40);
+        this.inspectorTitle = this.add.text(10, 10, 'Inspector', { fontSize: '14px', fill: '#ffcc00' })
+            .setScrollFactor(0);
+        this.inspectorControls = this.add.container(10, 40)
+            .setScrollFactor(0);
 
         this.inspectorContainer.add([bg, this.inspectorTitle, this.inspectorControls]);
         this.inspectorContainer.setVisible(false);
@@ -468,6 +476,8 @@ export default class MainScene extends Phaser.Scene {
 
     createButton(x, y, text, color, callback, isActive = false) {
         const container = this.add.container(x, y);
+        // CRITICAL: Ensure button is in screen space, not affected by camera
+        container.setScrollFactor(0);
 
         // Bigger button
         const width = 45;
@@ -478,17 +488,17 @@ export default class MainScene extends Phaser.Scene {
 
         const bg = this.add.rectangle(0, 0, width, height, baseColor)
             .setOrigin(0, 0)
-            .setStrokeStyle(isActive ? 2 : 0, 0xffffff);
+            .setStrokeStyle(isActive ? 2 : 0, 0xffffff)
+            .setScrollFactor(0);
 
         bg.setInteractive({ useHandCursor: true });
 
         const txt = this.add.text(width / 2, height / 2, text, { fontSize: '12px', fill: '#ffffff' })
-            .setOrigin(0.5, 0.5);
+            .setOrigin(0.5, 0.5)
+            .setScrollFactor(0);
 
         bg.on('pointerdown', (pointer, localX, localY, event) => {
             // Stop propagation to prevent clicking through to the map
-            // In Phaser 3, stopPropagation on the event object might not be enough if the scene input is also listening.
-            // We need to stop the pointer event from bubbling.
             if (event && event.stopPropagation) event.stopPropagation();
 
             // Visual Feedback
@@ -502,7 +512,6 @@ export default class MainScene extends Phaser.Scene {
             console.log(`Button clicked: ${text}`);
 
             // Defer the callback to the next frame to allow the input event to finish processing
-            // before we potentially destroy this button (which happens in updateInspectorUI).
             this.time.delayedCall(0, () => {
                 callback();
             });
