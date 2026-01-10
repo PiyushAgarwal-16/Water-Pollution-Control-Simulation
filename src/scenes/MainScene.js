@@ -618,7 +618,8 @@ export default class MainScene extends Phaser.Scene {
         const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.95)
             .setOrigin(0.5, 0.5)
             .setStrokeStyle(3, 0x4488ff)
-            .setInteractive();
+            .setInteractive()
+            .setScrollFactor(0);
 
         // Close on background click (with stopPropagation to prevent map interaction)
         bg.on('pointerdown', (pointer, localX, localY, event) => {
@@ -633,7 +634,8 @@ export default class MainScene extends Phaser.Scene {
             fill: '#888888',
             fontStyle: 'bold'
         }).setOrigin(0.5, 0.5)
-            .setInteractive({ useHandCursor: true });
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0);
 
         closeBtn.on('pointerdown', (pointer, localX, localY, event) => {
             if (event && event.stopPropagation) event.stopPropagation();
@@ -648,7 +650,8 @@ export default class MainScene extends Phaser.Scene {
             fontSize: '18px',
             fill: '#4488ff',
             fontStyle: 'bold'
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5)
+            .setScrollFactor(0);
 
         const pollutionLevel = factory.pollutionRate >= 0.04 ? 'High' : factory.pollutionRate >= 0.02 ? 'Medium' : 'Low';
         const pollutionColor = factory.pollutionRate >= 0.04 ? '#ff4444' : factory.pollutionRate >= 0.02 ? '#ffaa44' : '#44ff44';
@@ -665,17 +668,20 @@ export default class MainScene extends Phaser.Scene {
                 lineSpacing: 4,
                 wordWrap: { width: 350, useAdvancedWrap: true }
             }
-        ).setOrigin(0.5, 0);
+        ).setOrigin(0.5, 0)
+            .setScrollFactor(0);
 
         // Highlight pollution level with color
-        const levelIndicator = this.add.circle(-100, -18, 6, parseInt(pollutionColor.replace('#', '0x')));
+        const levelIndicator = this.add.circle(-100, -18, 6, parseInt(pollutionColor.replace('#', '0x')))
+            .setScrollFactor(0);
 
         const footer = this.add.text(0, 70, 'Click anywhere to close', {
             fontFamily: 'Inter, Arial, sans-serif',
             fontSize: '11px',
             fill: '#666666',
             fontStyle: 'italic'
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5)
+            .setScrollFactor(0);
 
         this.educationalOverlay.add([bg, closeBtn, title, info, levelIndicator, footer]);
     }
@@ -708,7 +714,8 @@ export default class MainScene extends Phaser.Scene {
         const bg = this.add.rectangle(0, 0, width, height, 0x1a1a1a, 0.95)
             .setOrigin(0.5, 0.5)
             .setStrokeStyle(3, 0x44aaff)
-            .setInteractive();
+            .setInteractive()
+            .setScrollFactor(0);
 
         bg.on('pointerdown', (pointer, localX, localY, event) => {
             if (event && event.stopPropagation) event.stopPropagation();
@@ -722,7 +729,8 @@ export default class MainScene extends Phaser.Scene {
             fill: '#888888',
             fontStyle: 'bold'
         }).setOrigin(0.5, 0.5)
-            .setInteractive({ useHandCursor: true });
+            .setInteractive({ useHandCursor: true })
+            .setScrollFactor(0);
 
         closeBtn.on('pointerdown', (pointer, localX, localY, event) => {
             if (event && event.stopPropagation) event.stopPropagation();
@@ -737,7 +745,8 @@ export default class MainScene extends Phaser.Scene {
             fontSize: '18px',
             fill: '#44aaff',
             fontStyle: 'bold'
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5)
+            .setScrollFactor(0);
 
         const pollution = cell.pollution * 100;
         const longTermPollution = cell.longTermPollution * 100;
@@ -772,18 +781,21 @@ export default class MainScene extends Phaser.Scene {
                 lineSpacing: 4,
                 wordWrap: { width: 370, useAdvancedWrap: true }
             }
-        ).setOrigin(0.5, 0);
+        ).setOrigin(0.5, 0)
+            .setScrollFactor(0);
 
         // Color indicators
-        const waterIndicator = this.add.circle(-145, -28, 6, parseInt(waterColor.replace('#', '0x')));
-        const fishIndicator = liveFish > 0 ? this.add.circle(-145, 7, 6, parseInt(fishColor.replace('#', '0x'))) : null;
+        const waterIndicator = this.add.circle(-145, -28, 6, parseInt(waterColor.replace('#', '0x')))
+            .setScrollFactor(0);
+        const fishIndicator = liveFish > 0 ? this.add.circle(-145, 7, 6, parseInt(fishColor.replace('#', '0x'))).setScrollFactor(0) : null;
 
         const footer = this.add.text(0, 95, 'Click anywhere to close', {
             fontFamily: 'Inter, Arial, sans-serif',
             fontSize: '11px',
             fill: '#666666',
             fontStyle: 'italic'
-        }).setOrigin(0.5, 0.5);
+        }).setOrigin(0.5, 0.5)
+            .setScrollFactor(0);
 
         const elements = [bg, closeBtn, title, info, waterIndicator, footer];
         if (fishIndicator) elements.push(fishIndicator);
